@@ -1,6 +1,8 @@
 use std::env::var;
 use std::path::Path;
 
+use bindgen::FieldVisibilityKind;
+
 fn main() {
     println!("cargo:rustc-link-search=include/bin");
     println!("cargo:rerun-if-changed=wrapper.h");
