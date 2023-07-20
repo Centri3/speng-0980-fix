@@ -2,12 +2,7 @@ use std::env::var;
 use std::path::Path;
 
 fn main() {
-    println!("cargo:rustc-link-search=./include/bin");
-    if var("TARGET").unwrap().starts_with("x86_64") {
-        println!("cargo:rustc-link-lib=static=nvapi64");
-    } else {
-        println!("cargo:rustc-link-lib=static=nvapi");
-    }
+    println!("cargo:rustc-link-search=include/bin");
     println!("cargo:rerun-if-changed=wrapper.h");
 
     bindgen::builder()
