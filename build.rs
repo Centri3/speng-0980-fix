@@ -1,10 +1,13 @@
 use std::env::var;
 use std::path::Path;
 
-use bindgen::FieldVisibilityKind;
-
 fn main() {
     println!("cargo:rustc-link-search=include/bin");
+    if var("TARGET").unwrap().starts_with("x86_64") {
+        println!("cargo:rustc-link-lib=include/amd64/nvapi64");
+    } else {
+        println!("cargo:rustc-link-lib=include/x86/nvapi");
+    }
     println!("cargo:rerun-if-changed=wrapper.h");
 
     bindgen::builder()
