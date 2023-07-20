@@ -1,16 +1,74 @@
-use speng_0980_fix::*;
+use gag::Redirect;
+use std::arch::global_asm;
 use std::env::current_exe;
+use std::fs::File;
 use std::mem::MaybeUninit;
+use std::process::Command;
+use std::process::Stdio;
 use std::ptr::addr_of_mut;
+use std::thread;
+use widestring::u16cstr;
 use widestring::U16CString;
+use windows_sys::Win32::Foundation::HMODULE;
+use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
+
+macro_rules! forward {
+    ($($name:expr => $ord:expr),+$(,)?) => {
+        $(
+            global_asm!(concat!(
+                ".section .drectve\n.ascii \"-export:",
+                $name,
+                "=zlibwapi_orig.",
+                $name,
+                ",@",
+                $ord,
+                "\0\""
+            ));
+        )+
+    };
+}
+
+forward!(
+    "unzClose" => 62,
+    "unzCloseCurrentFile" => 72,
+    "unzGetCurrentFileInfo" => 64,
+    "unzGetFilePos" => 100,
+    "unzGetGlobalInfo" => 63,
+    "unzGoToFilePos" => 101,
+    "unzGoToFirstFile" => 65,
+    "unzGoToNextFile" => 66,
+    "unzOpen" => 61,
+    "unzOpenCurrentFile" => 67,
+    "unzReadCurrentFile" => 68,
+);
+
+pub use nvapi::*;
+pub mod nvapi {
+    #![allow(nonstandard_style)]
+    #![allow(unused)]
+
+    include! { concat!(env!("OUT_DIR"), "/bindings.rs") }
+}
+
+#[no_mangle]
+unsafe extern "system" fn DllMain(_: HMODULE, reason: u32, _: usize) -> bool {
+    if reason == DLL_PROCESS_ATTACH {
+        thread::spawn(main);
+    }
+
+    true
+}
 
 fn main() {
+    let mut log = File::create("fix.log").unwrap();
+    Redirect::stdout(log).unwrap();
+
     let mut session = MaybeUninit::<NvDRSSessionHandle>::uninit();
 
-    assert_eq!(unsafe { NvAPI_Initialize() }, _NvAPI_Status_NVAPI_OK);
+    assert_eq!(unsafe { NvAPI_Initialize() }, 0);
     assert_eq!(
         unsafe { NvAPI_DRS_CreateSession(addr_of_mut!(session).cast()) },
-        _NvAPI_Status_NVAPI_OK,
+        0,
         "failed to create session",
     );
 
@@ -46,8 +104,8 @@ fn main() {
     };
 
     match result {
-        nvapi::_NvAPI_Status_NVAPI_OK => {}
-        nvapi::_NvAPI_Status_NVAPI_PROFILE_NOT_FOUND => {
+        0 => {}
+        -163 => {
             println!("profile is missing, creating new...");
 
             assert_eq!(
@@ -62,7 +120,7 @@ fn main() {
                         addr_of_mut!(profile).cast(),
                     )
                 },
-                _NvAPI_Status_NVAPI_OK,
+                0,
                 "failed to create profile",
             );
 
@@ -77,7 +135,7 @@ fn main() {
 
     assert_eq!(
         unsafe { NvAPI_DRS_GetSetting(session, profile, extension_limit_id, &mut extension_limit) },
-        _NvAPI_Status_NVAPI_OK,
+        0,
         "failed to get Extension string limit!",
     );
 
@@ -94,7 +152,7 @@ fn main() {
 
         assert_eq!(
             unsafe { NvAPI_DRS_SetSetting(session, profile, &mut extension_limit) },
-            _NvAPI_Status_NVAPI_OK,
+            0,
             "failed to set Extension string limit!",
         );
     }
@@ -127,17 +185,14 @@ fn main() {
                 },
             )
         },
-        _NvAPI_Status_NVAPI_OK,
+        0,
         "failed to add app {}",
         current_exe().unwrap().display()
     );
     println!("done!");
 
     println!("saving...");
-    assert_eq!(
-        unsafe { NvAPI_DRS_SaveSettings(session) },
-        _NvAPI_Status_NVAPI_OK
-    );
+    assert_eq!(unsafe { NvAPI_DRS_SaveSettings(session) }, 0);
     println!("done!");
 
     assert_eq!(
@@ -145,7 +200,7 @@ fn main() {
         0,
         "failed to destroy session. :("
     );
-    assert_eq!(unsafe { NvAPI_Unload() }, _NvAPI_Status_NVAPI_OK);
+    assert_eq!(unsafe { NvAPI_Unload() }, 0);
 }
 
 #[macro_export]
