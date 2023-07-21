@@ -60,6 +60,8 @@ unsafe extern "system" fn DllMain(_: HMODULE, reason: u32, _: usize) -> bool {
 }
 
 fn main() {
+    // NOTE: Writing to stdout is a terrible idea, this was originally gonna be a separate program that would be opened by `DllMain` but I managed to get it to work here. But I'm surprised this doesn't immediately panic! This should be changed to using `libc_print`.
+
     let mut log = File::create("fix.log").unwrap();
     Redirect::stdout(log).unwrap();
 
